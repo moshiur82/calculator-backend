@@ -1,29 +1,37 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg'); // PostgreSQL ব্যবহার
 const app = express();
-const port = 5000;
+
+// দ্যানামিক পোর্ট
+const port = process.env.PORT || 5000;
 
 // মিডলওয়্যার
 app.use(cors());
 app.use(express.json());
 
-// ডাটাবেজ সেটআপ
-const db = new sqlite3.Database('calculations.db', (err) => {
+// PostgreSQL সেটআপ
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL, // Railway থেকে আসবে
+});
+
+pool.connect((err) => {
   if (err) {
-    console.error('Database error:', err.message);
+    console.error('Database connection error:', err.message);
   } else {
-    console.log('Connected to SQLite database');
+    console.log('Connected to PostgreSQL');
     // টেবিল তৈরি (যদি না থাকে)
-    db.run(`
+    pool.query(`
       CREATE TABLE IF NOT EXISTS calculations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         num1 REAL,
         num2 REAL,
         result REAL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `);
+    `, (err) => {
+      if (err) console.error('Table creation error:', err.message);
+    });
   }
 });
 
@@ -35,10 +43,10 @@ app.post('/api/calculate', (req, res) => {
   }
   const sum = parseFloat(num1) + parseFloat(num2);
   // ডাটাবেজে সেভ করা
-  db.run(
-    `INSERT INTO calculations (num1, num2, result) VALUES (?, ?, ?)`,
+  pool.query(
+    `INSERT INTO calculations (num1, num2, result) VALUES ($1, $2, $3) RETURNING *`,
     [num1, num2, sum],
-    (err) => {
+    (err, result) => {
       if (err) {
         console.error('Database insert error:', err.message);
         return res.status(500).json({ error: 'Failed to save calculation' });
@@ -50,25 +58,23 @@ app.post('/api/calculate', (req, res) => {
 
 // হিস্ট্রি ফেচ করার জন্য API
 app.get('/api/history', (req, res) => {
-  db.all(`SELECT * FROM calculations ORDER BY created_at DESC`, [], (err, rows) => {
+  pool.query(`SELECT * FROM calculations ORDER BY created_at DESC`, (err, result) => {
     if (err) {
       return res.status(500).json({ error: 'Failed to fetch history' });
     }
-    res.json(rows);
+    res.json(result.rows);
   });
 });
 
 // সার্ভার স্টার্ট
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
 
-// ডাটাবেজ বন্ধ করা (সার্ভার বন্ধ হলে)
+// সার্ভার বন্ধ হলে কানেকশন বন্ধ
 process.on('SIGINT', () => {
-  db.close((err) => {
-    if (err) {
-      console.error('Database close error:', err.message);
-    }
+  pool.end((err) => {
+    if (err) console.error('Database close error:', err.message);
     console.log('Database connection closed.');
     process.exit(0);
   });

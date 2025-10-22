@@ -14,19 +14,22 @@ const pool = new Pool({
 });
 
 pool.connect((err) => {
-  if (err) console.error('Database error:', err.stack);
-  else {
-    console.log('Connected to PostgreSQL');
-    pool.query(`
-      CREATE TABLE IF NOT EXISTS calculations (
-        id SERIAL PRIMARY KEY,
-        num1 REAL,
-        num2 REAL,
-        result REAL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  if (err) {
+    console.error('Database connection error:', err.stack); // বিস্তারিত এরর
+    return;
   }
+  console.log('Connected to PostgreSQL');
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS calculations (
+      id SERIAL PRIMARY KEY,
+      num1 REAL,
+      num2 REAL,
+      result REAL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `, (err) => {
+    if (err) console.error('Table creation error:', err.stack);
+  });
 });
 
 app.post('/api/calculate', (req, res) => {

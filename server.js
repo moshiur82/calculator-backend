@@ -8,14 +8,18 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// ডিবাগ: DATABASE_URL আছে কি না চেক করুন
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Railway-এর জন্য
+  ssl: { rejectUnauthorized: false },
 });
 
 async function initializeDatabase() {
   const client = await pool.connect();
   try {
+    console.log('Attempting to connect to PostgreSQL...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS calculations (
         id SERIAL PRIMARY KEY,
@@ -27,13 +31,14 @@ async function initializeDatabase() {
     `);
     console.log('Table "calculations" created or already exists');
   } catch (err) {
-    console.error('Database initialization error:', err.stack);
+    console.error('Database initialization error:', err.message);
+    console.error('Full error:', err);
   } finally {
-    client.release(); // কানেকশন ফিরিয়ে দিন
+    client.release();
   }
 }
 
-initializeDatabase(); // ডাটাবেস ইনিশিয়ালাইজ করা
+initializeDatabase();
 
 app.post('/api/calculate', (req, res) => {
   const { num1, num2 } = req.body;
@@ -60,6 +65,4 @@ app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
 
-process.on('SIGINT', () => {
-  pool.end(() => process.exit(0));
-});
+process.on('SIGINT', () => pool.end(() => process.exit(0)));

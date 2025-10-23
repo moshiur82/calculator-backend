@@ -13,24 +13,28 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }, // Railway-এর জন্য
 });
 
-pool.connect((err) => {
-  if (err) {
-    console.error('Database connection error:', err.stack); // বিস্তারিত এরর
-    return;
+async function initializeDatabase() {
+  try {
+    await pool.connect();
+    console.log('Connected to PostgreSQL');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calculations (
+        id SERIAL PRIMARY KEY,
+        num1 REAL,
+        num2 REAL,
+        result REAL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Table "calculations" created or already exists');
+  } catch (err) {
+    console.error('Database initialization error:', err.stack);
+  } finally {
+    pool.end(); // কানেকশন বন্ধ করা
   }
-  console.log('Connected to PostgreSQL');
-  pool.query(`
-    CREATE TABLE IF NOT EXISTS calculations (
-      id SERIAL PRIMARY KEY,
-      num1 REAL,
-      num2 REAL,
-      result REAL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `, (err) => {
-    if (err) console.error('Table creation error:', err.stack);
-  });
-});
+}
+
+initializeDatabase(); // ডাটাবেস ইনিশিয়ালাইজ করা
 
 app.post('/api/calculate', (req, res) => {
   const { num1, num2 } = req.body;

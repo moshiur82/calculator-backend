@@ -14,10 +14,9 @@ const pool = new Pool({
 });
 
 async function initializeDatabase() {
+  const client = await pool.connect();
   try {
-    await pool.connect();
-    console.log('Connected to PostgreSQL');
-    await pool.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS calculations (
         id SERIAL PRIMARY KEY,
         num1 REAL,
@@ -30,7 +29,7 @@ async function initializeDatabase() {
   } catch (err) {
     console.error('Database initialization error:', err.stack);
   } finally {
-    pool.end(); // কানেকশন বন্ধ করা
+    client.release(); // কানেকশন ফিরিয়ে দিন
   }
 }
 
